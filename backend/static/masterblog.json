@@ -7,66 +7,102 @@
   },
   "host": "localhost:5002",
   "basePath": "/",
-  "schemes": ["http"],
+  "schemes": [
+    "http"
+  ],
   "tags": [
-    { "name": "Post", "description": "Post API - CRUD" }
+    {
+      "name": "Post",
+      "description": "Post API - CRUD"
+    }
   ],
   "paths": {
     "/api/posts": {
       "get": {
         "summary": "Returns all posts (optionally sorted)",
-        "produces": ["application/json"],
-        "tags": ["Post"],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Post"
+        ],
         "parameters": [
           {
             "name": "sort",
             "in": "query",
             "required": false,
             "type": "string",
-            "enum": ["title", "content"],
-            "description": "Field to sort by"
+            "enum": [
+              "title",
+              "content",
+              "author",
+              "date"
+            ],
+            "description": "Field to sort by (date is sorted chronologically)"
           },
           {
             "name": "direction",
             "in": "query",
             "required": false,
             "type": "string",
-            "enum": ["asc", "desc"],
+            "enum": [
+              "asc",
+              "desc"
+            ],
             "description": "Sort direction (default: asc)"
           }
         ],
         "responses": {
           "200": {
             "description": "Successful operation",
-            "schema": { "type": "array", "items": { "$ref": "#/definitions/Post" } }
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Post"
+              }
+            }
           },
           "400": {
             "description": "Invalid sort field or direction",
-            "schema": { "$ref": "#/definitions/Error" }
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
           }
         }
       },
       "post": {
         "summary": "Creates a new post",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
-        "tags": ["Post"],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Post"
+        ],
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
-            "schema": { "$ref": "#/definitions/NewPost" }
+            "schema": {
+              "$ref": "#/definitions/NewPost"
+            }
           }
         ],
         "responses": {
           "201": {
             "description": "Post created",
-            "schema": { "$ref": "#/definitions/Post" }
+            "schema": {
+              "$ref": "#/definitions/Post"
+            }
           },
           "400": {
-            "description": "Missing title and/or content",
-            "schema": { "$ref": "#/definitions/Error" }
+            "description": "Missing title/content or invalid date",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
           }
         }
       }
@@ -74,9 +110,15 @@
     "/api/posts/{id}": {
       "put": {
         "summary": "Updates an existing post",
-        "consumes": ["application/json"],
-        "produces": ["application/json"],
-        "tags": ["Post"],
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Post"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -89,24 +131,40 @@
             "name": "body",
             "in": "body",
             "required": false,
-            "schema": { "$ref": "#/definitions/UpdatePost" }
+            "schema": {
+              "$ref": "#/definitions/UpdatePost"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "Post updated",
-            "schema": { "$ref": "#/definitions/Post" }
+            "schema": {
+              "$ref": "#/definitions/Post"
+            }
           },
           "404": {
             "description": "Post not found",
-            "schema": { "$ref": "#/definitions/Error" }
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "400": {
+            "description": "Invalid date or body",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
           }
         }
       },
       "delete": {
         "summary": "Deletes a post",
-        "produces": ["application/json"],
-        "tags": ["Post"],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Post"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -119,20 +177,28 @@
         "responses": {
           "200": {
             "description": "Post deleted",
-            "schema": { "$ref": "#/definitions/Message" }
+            "schema": {
+              "$ref": "#/definitions/Message"
+            }
           },
           "404": {
             "description": "Post not found",
-            "schema": { "$ref": "#/definitions/Error" }
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
           }
         }
       }
     },
     "/api/posts/search": {
       "get": {
-        "summary": "Searches posts by title and/or content",
-        "produces": ["application/json"],
-        "tags": ["Post"],
+        "summary": "Searches posts by title, content, author and/or date",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Post"
+        ],
         "parameters": [
           {
             "name": "title",
@@ -147,12 +213,38 @@
             "required": false,
             "type": "string",
             "description": "Text to search for in the content"
+          },
+          {
+            "name": "author",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "description": "Text to search for in the author"
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "description": "Text to search for in the date"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "description": "Text to search for in any field"
           }
         ],
         "responses": {
           "200": {
             "description": "List of matching posts (empty if none match)",
-            "schema": { "type": "array", "items": { "$ref": "#/definitions/Post" } }
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Post"
+              }
+            }
           }
         }
       }
@@ -162,36 +254,96 @@
     "Post": {
       "type": "object",
       "properties": {
-        "id": { "type": "integer", "example": 1 },
-        "title": { "type": "string", "example": "First post" },
-        "content": { "type": "string", "example": "This is the first post." }
+        "id": {
+          "type": "integer",
+          "example": 1
+        },
+        "title": {
+          "type": "string",
+          "example": "First post"
+        },
+        "content": {
+          "type": "string",
+          "example": "This is the first post."
+        },
+        "author": {
+          "type": "string",
+          "example": "Hakan Samci"
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "example": "2023-06-07"
+        }
       }
     },
     "NewPost": {
       "type": "object",
-      "required": ["title", "content"],
+      "required": [
+        "title",
+        "content"
+      ],
       "properties": {
-        "title": { "type": "string", "example": "My new post" },
-        "content": { "type": "string", "example": "Hello world!" }
+        "title": {
+          "type": "string",
+          "example": "My new post"
+        },
+        "content": {
+          "type": "string",
+          "example": "Hello world!"
+        },
+        "author": {
+          "type": "string",
+          "example": "Hakan Samci",
+          "description": "Optional, defaults to \"Anonymous\""
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "example": "2023-06-07",
+          "description": "Optional, YYYY-MM-DD, defaults to today"
+        }
       }
     },
     "UpdatePost": {
       "type": "object",
       "properties": {
-        "title": { "type": "string", "example": "Updated title" },
-        "content": { "type": "string", "example": "Updated content" }
+        "title": {
+          "type": "string",
+          "example": "Updated title"
+        },
+        "content": {
+          "type": "string",
+          "example": "Updated content"
+        },
+        "author": {
+          "type": "string",
+          "example": "Hakan Samci"
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "example": "2023-06-07",
+          "description": "YYYY-MM-DD"
+        }
       }
     },
     "Message": {
       "type": "object",
       "properties": {
-        "message": { "type": "string", "example": "Post with id 1 has been deleted successfully." }
+        "message": {
+          "type": "string",
+          "example": "Post with id 1 has been deleted successfully."
+        }
       }
     },
     "Error": {
       "type": "object",
       "properties": {
-        "error": { "type": "string", "example": "Post with id 99 was not found." }
+        "error": {
+          "type": "string",
+          "example": "Post with id 99 was not found."
+        }
       }
     }
   }
