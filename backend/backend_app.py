@@ -9,6 +9,9 @@ POSTS = [
     {"id": 2, "title": "Second post", "content": "This is the second post."},
 ]
 
+SORT_FIELDS = ("title", "content")
+SORT_DIRECTIONS = ("asc", "desc")
+
 
 def generate_post_id():
     """Return a new unique integer ID (max existing ID + 1)."""
@@ -22,7 +25,31 @@ def find_post_by_id(post_id):
 
 @app.route('/api/posts', methods=['GET'])
 def get_posts():
-    return jsonify(POSTS)
+    sort_field = request.args.get('sort')
+    direction = request.args.get('direction')
+
+    if sort_field is not None and sort_field not in SORT_FIELDS:
+        return jsonify({
+            "error": f"Invalid sort field '{sort_field}'. "
+                     f"Allowed values: {', '.join(SORT_FIELDS)}."
+        }), 400
+
+    if direction is not None and direction not in SORT_DIRECTIONS:
+        return jsonify({
+            "error": f"Invalid sort direction '{direction}'. "
+                     f"Allowed values: {', '.join(SORT_DIRECTIONS)}."
+        }), 400
+
+    # No sort field: keep the original order
+    if sort_field is None:
+        return jsonify(POSTS)
+
+    sorted_posts = sorted(
+        POSTS,
+        key=lambda post: post[sort_field].lower(),
+        reverse=(direction == "desc")
+    )
+    return jsonify(sorted_posts)
 
 
 @app.route('/api/posts', methods=['POST'])
