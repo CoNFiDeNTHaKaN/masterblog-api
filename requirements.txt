@@ -26,6 +26,7 @@ email-validator==2.3.0
 filelock==3.25.2
 Flask==3.1.0
 flask-cors==6.0.5
+flask-swagger-ui==5.36.0
 frozenlist==1.8.0
 fsspec==2026.3.0
 future==1.0.0
