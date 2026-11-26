@@ -1,3 +1,6 @@
+import json
+import os
+import threading
 from datetime import date, datetime
 
 from flask import Flask, jsonify, request
@@ -20,12 +23,57 @@ app.register_blueprint(swagger_ui_blueprint, url_prefix=SWAGGER_URL)
 DATE_FORMAT = "%Y-%m-%d"
 DEFAULT_AUTHOR = "Anonymous"
 
-POSTS = [
+# Posts are stored in a JSON file next to this script, so they survive restarts
+POSTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "posts.json")
+
+# Used to create posts.json the first time the app runs
+DEFAULT_POSTS = [
     {"id": 1, "title": "First post", "content": "This is the first post.",
      "author": "Hakan Samci", "date": "2023-06-07"},
     {"id": 2, "title": "Second post", "content": "This is the second post.",
      "author": "Jane Doe", "date": "2023-05-15"},
 ]
+
+# Prevents two requests from writing the file at the same time
+storage_lock = threading.Lock()
+
+
+class StorageError(Exception):
+    """Raised when posts.json cannot be read or written."""
+
+
+def load_posts():
+    """Read all posts from the JSON file. Creates the file if it doesn't exist."""
+    if not os.path.exists(POSTS_FILE):
+        save_posts(DEFAULT_POSTS)
+        return [dict(post) for post in DEFAULT_POSTS]
+    try:
+        with open(POSTS_FILE, "r", encoding="utf-8") as file:
+            posts = json.load(file)
+    except json.JSONDecodeError as error:
+        raise StorageError(f"posts.json contains invalid JSON: {error}") from error
+    except OSError as error:
+        raise StorageError(f"Could not read posts.json: {error}") from error
+    if not isinstance(posts, list):
+        raise StorageError("posts.json must contain a JSON list of posts.")
+    return posts
+
+
+def save_posts(posts):
+    """Write all posts to the JSON file (temp file + replace, so it never ends up half-written)."""
+    temp_file = POSTS_FILE + ".tmp"
+    try:
+        with open(temp_file, "w", encoding="utf-8") as file:
+            json.dump(posts, file, indent=4, ensure_ascii=False)
+        os.replace(temp_file, POSTS_FILE)
+    except OSError as error:
+        raise StorageError(f"Could not write posts.json: {error}") from error
+
+
+@app.errorhandler(StorageError)
+def handle_storage_error(error):
+    return jsonify({"error": "Storage error.", "details": str(error)}), 500
+
 
 REQUIRED_FIELDS = ("title", "content")
 TEXT_FIELDS = ("title", "content", "author")
@@ -34,14 +82,14 @@ SORT_FIELDS = ("title", "content", "author", "date")
 SORT_DIRECTIONS = ("asc", "desc")
 
 
-def generate_post_id():
+def generate_post_id(posts):
     """Return a new unique integer ID (max existing ID + 1)."""
-    return max((post["id"] for post in POSTS), default=0) + 1
+    return max((post["id"] for post in posts), default=0) + 1
 
 
-def find_post_by_id(post_id):
+def find_post_by_id(posts, post_id):
     """Return the post with the given id, or None if it doesn't exist."""
-    return next((post for post in POSTS if post["id"] == post_id), None)
+    return next((post for post in posts if post["id"] == post_id), None)
 
 
 def parse_date(value):
@@ -81,11 +129,13 @@ def get_posts():
                      f"Allowed values: {', '.join(SORT_DIRECTIONS)}."
         }), 400
 
+    posts = load_posts()
+
     # No sort field: keep the original order
     if sort_field is None:
-        return jsonify(POSTS)
+        return jsonify(posts)
 
-    sorted_posts = sorted(POSTS, key=sort_key(sort_field),
+    sorted_posts = sorted(posts, key=sort_key(sort_field),
                           reverse=(direction == "desc"))
     return jsonify(sorted_posts)
 
@@ -115,24 +165,30 @@ def add_post():
         except ValueError:
             return date_error(raw_date)
 
-    new_post = {
-        "id": generate_post_id(),
-        "title": data["title"].strip(),
-        "content": data["content"].strip(),
-        "author": author,
-        "date": post_date.strftime(DATE_FORMAT),
-    }
-    POSTS.append(new_post)
+    with storage_lock:
+        posts = load_posts()
+        new_post = {
+            "id": generate_post_id(posts),
+            "title": data["title"].strip(),
+            "content": data["content"].strip(),
+            "author": author,
+            "date": post_date.strftime(DATE_FORMAT),
+        }
+        posts.append(new_post)
+        save_posts(posts)
     return jsonify(new_post), 201
 
 
 @app.route('/api/posts/<int:post_id>', methods=['DELETE'])
 def delete_post(post_id):
-    post = find_post_by_id(post_id)
-    if post is None:
-        return jsonify({"error": f"Post with id {post_id} was not found."}), 404
+    with storage_lock:
+        posts = load_posts()
+        post = find_post_by_id(posts, post_id)
+        if post is None:
+            return jsonify({"error": f"Post with id {post_id} was not found."}), 404
 
-    POSTS.remove(post)
+        posts.remove(post)
+        save_posts(posts)
     return jsonify({
         "message": f"Post with id {post_id} has been deleted successfully."
     }), 200
@@ -140,10 +196,6 @@ def delete_post(post_id):
 
 @app.route('/api/posts/<int:post_id>', methods=['PUT'])
 def update_post(post_id):
-    post = find_post_by_id(post_id)
-    if post is None:
-        return jsonify({"error": f"Post with id {post_id} was not found."}), 404
-
     data = request.get_json(silent=True)
     if data is None:
         data = {}  # Empty body: keep current values
@@ -159,14 +211,21 @@ def update_post(post_id):
         except ValueError:
             return date_error(raw_date)
 
-    # Only overwrite fields that were provided with a non-empty value
-    for field in TEXT_FIELDS:
-        value = data.get(field)
-        if isinstance(value, str) and value.strip():
-            post[field] = value.strip()
-    if new_date is not None:
-        post["date"] = new_date.strftime(DATE_FORMAT)
+    with storage_lock:
+        posts = load_posts()
+        post = find_post_by_id(posts, post_id)
+        if post is None:
+            return jsonify({"error": f"Post with id {post_id} was not found."}), 404
 
+        # Only overwrite fields that were provided with a non-empty value
+        for field in TEXT_FIELDS:
+            value = data.get(field)
+            if isinstance(value, str) and value.strip():
+                post[field] = value.strip()
+        if new_date is not None:
+            post["date"] = new_date.strftime(DATE_FORMAT)
+
+        save_posts(posts)
     return jsonify(post), 200
 
 
@@ -180,9 +239,11 @@ def search_posts():
     # Generic term that matches any field, e.g. ?search=2023
     general_term = request.args.get('search', '').strip().lower()
 
+    posts = load_posts()
+
     # No search terms given: return all posts
     if not terms and not general_term:
-        return jsonify(POSTS)
+        return jsonify(posts)
 
     def matches(post):
         if any(term in str(post[field]).lower() for field, term in terms.items()):
@@ -192,7 +253,7 @@ def search_posts():
                        for field in SEARCH_FIELDS)
         return False
 
-    return jsonify([post for post in POSTS if matches(post)])
+    return jsonify([post for post in posts if matches(post)])
 
 
 if __name__ == '__main__':
