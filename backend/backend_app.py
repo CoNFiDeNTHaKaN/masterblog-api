@@ -60,5 +60,43 @@ def delete_post(post_id):
     }), 200
 
 
+@app.route('/api/posts/<int:post_id>', methods=['PUT'])
+def update_post(post_id):
+    post = find_post_by_id(post_id)
+    if post is None:
+        return jsonify({"error": f"Post with id {post_id} was not found."}), 404
+
+    data = request.get_json(silent=True)
+    if data is None:
+        data = {}  # Empty body: keep current values
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must be a JSON object."}), 400
+
+    # Only overwrite fields that were provided with a non-empty value
+    for field in ("title", "content"):
+        value = data.get(field)
+        if isinstance(value, str) and value.strip():
+            post[field] = value.strip()
+
+    return jsonify(post), 200
+
+
+@app.route('/api/posts/search', methods=['GET'])
+def search_posts():
+    title_term = request.args.get('title', '').strip().lower()
+    content_term = request.args.get('content', '').strip().lower()
+
+    # No search terms given: return all posts
+    if not title_term and not content_term:
+        return jsonify(POSTS)
+
+    results = [
+        post for post in POSTS
+        if (title_term and title_term in post["title"].lower())
+        or (content_term and content_term in post["content"].lower())
+    ]
+    return jsonify(results)
+
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5002, debug=True)
