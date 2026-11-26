@@ -1,0 +1,7 @@
+.guides/
+.codio
+.settings
+.venv/
+.idea/
+__pycache__/
+*.pyc
